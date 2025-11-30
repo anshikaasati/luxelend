@@ -1,10 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #f9fafb;
+  font-family: 'Inter', sans-serif;
+  background-color: #fffbf5; /* Creamy, subtle background */
+  scroll-behavior: smooth;
+}
+
+/* Custom primary color palette - Deep Berry/Maroon */
+.bg-primary-berry { background-color: #9d174d; } 
+.text-primary-berry { color: #9d174d; }
+.hover\:bg-primary-dark:hover { background-color: #831843; } 
+
+/* Custom secondary color - Saffron Gold for accents */
+.bg-secondary-gold { background-color: #ca8a04; } 
+.text-secondary-gold { color: #ca8a04; }
+.hover\:bg-secondary-dark:hover { background-color: #a16207; } 
+
+/* Gradient for primary buttons (Vibrant Pink/Gold to Deep Berry) */
+.btn-gradient-vows {
+  background-image: linear-gradient(to right top, #fb7185, #9d174d); /* Pink to Berry */
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-gradient-vows:hover {
+  background-image: linear-gradient(to right top, #9d174d, #831843);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(157, 23, 77, 0.6);
+}
+
+/* Secondary Action Button (Gold/Green for contrasting call-to-action) */
+.btn-gradient-gold {
+  background-image: linear-gradient(to right top, #fcd34d, #ca8a04); /* Light Gold to Deep Gold */
+  color: #4a270a; /* Deep Brown text on gold */
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-gradient-gold:hover {
+  background-image: linear-gradient(to right top, #ca8a04, #b48318);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(202, 138, 4, 0.6);
+}
+
+/* Hero section specific styles - subtle luxury background */
+.hero-section {
+  background: linear-gradient(135deg, #fefce8 0%, #fae6c3 100%); /* Light Gold/Cream gradient background */
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem; 
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  /* Subtle floral/geometric pattern using gradients */
+  background: radial-gradient(circle at 10% 10%, rgba(157, 23, 77, 0.05) 0%, transparent 40%),
+              radial-gradient(circle at 90% 90%, rgba(202, 138, 4, 0.08) 0%, transparent 40%);
+  z-index: 0;
+  opacity: 1;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Custom modal backdrop */
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.75);
+  z-index: 40;
 }
 
 

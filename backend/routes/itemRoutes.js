@@ -9,7 +9,7 @@ const router = express.Router();
 const itemValidation = [
   body('title').notEmpty().withMessage('Title is required'),
   body('description').notEmpty().withMessage('Description is required'),
-  body('category').isIn(['clothes', 'jewellery']).withMessage('Category must be clothes or jewellery'),
+  body('category').isIn(['clothes', 'jewellery', 'accessories', 'watch', 'shoes']).withMessage('Category must be one of: clothes, jewellery, accessories, watch, shoes'),
   body('rentPricePerDay').isFloat({ min: 0 }).withMessage('Rent price is required'),
   body('salePrice').optional().isFloat({ min: 0 }).withMessage('Sale price must be positive'),
   body('location.city').notEmpty().withMessage('City is required'),

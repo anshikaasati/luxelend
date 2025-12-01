@@ -11,9 +11,9 @@
 }
 
 body {
-  background: radial-gradient(circle at 20% 20%, rgba(255, 228, 236, 0.4), transparent 35%),
-    radial-gradient(circle at 80% 0%, rgba(253, 237, 213, 0.35), transparent 40%),
-    linear-gradient(120deg, #06010d, #120319, #1c0f2b);
+  background: radial-gradient(circle at 20% 20%, rgba(255, 228, 236, 0.25), transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(252, 241, 224, 0.35), transparent 50%),
+    linear-gradient(90deg, #ffe0eb 0%, #fff3e2 50%, #fff8ef 100%);
   min-height: 100vh;
   scroll-behavior: smooth;
   color: #0f172a;

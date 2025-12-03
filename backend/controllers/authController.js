@@ -14,6 +14,7 @@ export const registerUser = async (req, res, next) => {
     const { name, email, password, phone, avatarUrl } = req.body;
 
     const existingUser = await User.findOne({ email });
+
     if (existingUser) {
       res.status(400);
       return next(new Error('Email already registered'));
@@ -48,6 +49,7 @@ export const loginUser = async (req, res, next) => {
 
     const { email, password } = req.body;
     const user = await User.findOne({ email });
+
     if (!user) {
       res.status(401);
       return next(new Error('Invalid credentials'));
@@ -67,7 +69,9 @@ export const loginUser = async (req, res, next) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        roles: user.roles,
+        isLenderEnabled: user.isLenderEnabled
       }
     });
   } catch (error) {
@@ -103,4 +107,72 @@ export const updateMe = async (req, res, next) => {
   }
 };
 
+// Toggle Lender Role
+export const toggleLenderRole = async (req, res, next) => {
+  try {
+    const { enable } = req.body;
+    const user = await User.findById(req.user._id);
 
+    if (!user) {
+      res.status(404);
+      return next(new Error('User not found'));
+    }
+
+    user.isLenderEnabled = enable;
+
+    if (enable) {
+      if (!user.roles.includes('lender')) {
+        user.roles.push('lender');
+      }
+    } else {
+      user.roles = user.roles.filter(role => role !== 'lender');
+    }
+
+    await user.save();
+
+    const userResponse = user.toObject();
+    delete userResponse.passwordHash;
+
+    res.json({
+      message: enable ? 'Lender mode enabled' : 'Lender mode disabled',
+      user: { ...userResponse, id: userResponse._id }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Delete Account (Hard Delete - removes all data)
+export const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      res.status(404);
+      return next(new Error('User not found'));
+    }
+
+    // Import models for cleanup
+    const Item = (await import('../models/Item.js')).default;
+    const Booking = (await import('../models/Booking.js')).default;
+    const Wishlist = (await import('../models/Wishlist.js')).default;
+
+    // Delete all user's items
+    await Item.deleteMany({ ownerId: userId });
+
+    // Delete all bookings (as renter)
+    await Booking.deleteMany({ renterId: userId });
+
+    // Delete wishlist entries
+    await Wishlist.deleteMany({ userId: userId });
+
+    // Finally, delete the user account
+    await User.findByIdAndDelete(userId);
+
+    res.json({ message: 'Account and all associated data deleted successfully' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    next(error);
+  }
+};

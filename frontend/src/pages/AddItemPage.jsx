@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Image, Info, Upload, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { itemApi } from '../api/services';
+import { itemApi, paymentApi } from '../api/services';
 
 const initialState = {
   title: '',
@@ -73,16 +73,18 @@ const AddItemPage = () => {
 
     setLoading(true);
     try {
-      const { data } = await itemApi.create(formData);
-      toast.success(`Successfully submitted "${form.title}".`);
+      // Create Item
+      const { data: item } = await itemApi.create(formData);
+      toast.success(`Item "${form.title}" listed successfully!`);
+
       setForm(initialState);
       setFiles([]);
       setPreviews([]);
-      // Stay on page or navigate to home/profile if preferred
-      // navigate('/profile'); 
+      navigate('/profile');
 
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to add item');
+      console.error(error);
+      toast.error(error.response?.data?.message || 'Failed to process listing');
     } finally {
       setLoading(false);
     }
@@ -410,8 +412,8 @@ const AddItemPage = () => {
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
                   className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${dragActive
-                      ? 'border-primary-berry bg-primary-berry/5'
-                      : 'border-secondary-gold bg-secondary-gold/10 hover:bg-secondary-gold/20'
+                    ? 'border-primary-berry bg-primary-berry/5'
+                    : 'border-secondary-gold bg-secondary-gold/10 hover:bg-secondary-gold/20'
                     }`}
                 >
                   <input

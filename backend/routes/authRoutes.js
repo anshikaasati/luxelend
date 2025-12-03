@@ -1,6 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { registerUser, loginUser, getMe, updateMe } from '../controllers/authController.js';
+import { registerUser, loginUser, getMe, updateMe, toggleLenderRole, deleteAccount } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -25,8 +25,8 @@ router.post(
 );
 
 router.get('/me', protect, getMe);
-router.put('/me', protect, updateMe);
+router.patch('/me', protect, updateMe);
+router.patch('/toggle-lender', protect, toggleLenderRole);
+router.delete('/delete-account', protect, deleteAccount);
 
 export default router;
-
-

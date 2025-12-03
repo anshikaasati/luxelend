@@ -35,7 +35,15 @@ const itemSchema = new mongoose.Schema(
     depositAmount: { type: Number, default: 0, min: 0 },
     // Structured location fields plus full address text for display
     location: { type: locationSchema, required: true },
-    addressLine: { type: String, required: true }
+    addressLine: { type: String, required: true },
+    // Razorpay Subscription for Listing
+    razorpaySubscriptionId: { type: String },
+    subscriptionStatus: {
+      type: String,
+      enum: ['active', 'pending', 'cancelled', 'halted'],
+      default: 'pending'
+    },
+    isActive: { type: Boolean, default: false }
   },
   { timestamps: { createdAt: true, updatedAt: true } }
 );

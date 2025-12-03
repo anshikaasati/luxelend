@@ -4,7 +4,9 @@ export const authApi = {
   register: (payload) => api.post('/auth/register', payload),
   login: (payload) => api.post('/auth/login', payload),
   me: () => api.get('/auth/me'),
-  update: (payload) => api.put('/auth/me', payload)
+  update: (payload) => api.patch('/auth/me', payload),
+  toggleLenderRole: (enable) => api.patch('/auth/toggle-lender', { enable }),
+  deleteAccount: () => api.delete('/auth/delete-account')
 };
 
 export const itemApi = {
@@ -32,6 +34,14 @@ export const wishlistApi = {
   list: () => api.get('/wishlist'),
   add: (itemId) => api.post(`/wishlist/${itemId}`),
   remove: (itemId) => api.delete(`/wishlist/${itemId}`)
+};
+
+export const paymentApi = {
+  onboardLender: (payload) => api.post('/payments/onboard-lender', payload),
+  createOrder: (payload) => api.post('/payments/create-order', payload),
+  verifyPayment: (payload) => api.post('/payments/verify-payment', payload),
+  createSubscription: (payload) => api.post('/payments/create-subscription', payload),
+  verifySubscription: (payload) => api.post('/payments/verify-subscription', payload)
 };
 
 

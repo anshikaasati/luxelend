@@ -9,6 +9,7 @@ import itemRoutes from './routes/itemRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import wishlistRoutes from './routes/wishlistRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
@@ -31,7 +32,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.get('/', (_req, res) => {
   res.json({ message: 'Rental API is running' });

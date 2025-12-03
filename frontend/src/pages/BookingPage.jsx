@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { bookingApi } from '../api/services';
+import { bookingApi, paymentApi } from '../api/services';
 import { MapPin, Truck, User, Phone, Calendar, CreditCard, Banknote } from 'lucide-react';
 
 const BookingPage = () => {
@@ -92,9 +92,96 @@ const BookingPage = () => {
         })
       };
 
-      await bookingApi.create(payload);
-      toast.success('Booking confirmed successfully!');
-      navigate('/bookings');
+      const isOnlinePayment =
+        (isRental && formData.depositPaymentMethod === 'card') ||
+        (!isRental && formData.paymentMethod === 'online');
+
+      if (isOnlinePayment) {
+        // Calculate amount to charge online
+        let amountToCharge;
+        if (isRental) {
+          // If rent is also online, charge full amount (deposit + rent)
+          // If rent is COD, charge only deposit
+          amountToCharge = formData.rentPaymentMethod === 'online'
+            ? totalAmount
+            : depositAmount;
+        } else {
+          // For sales, always full amount
+          amountToCharge = totalAmount;
+        }
+
+        if (amountToCharge === 0) {
+          toast.error('No amount to charge online');
+          setLoading(false);
+          return;
+        }
+
+        // 1. Create Order
+        const { data: order } = await paymentApi.createOrder({ amount: amountToCharge, currency: 'INR' });
+
+        // 2. Open Razorpay with custom theme
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+          amount: order.amount,
+          currency: order.currency,
+          name: "Vastra Vows",
+          description: isRental
+            ? (formData.rentPaymentMethod === 'online'
+              ? `Full Payment for ${item.title}`
+              : `Security Deposit for ${item.title}`)
+            : `Purchase ${item.title}`,
+          image: "https://i.imgur.com/3g7nmJC.png",
+          order_id: order.id,
+          handler: async function (response) {
+            try {
+              await paymentApi.verifyPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                bookingData: payload
+              });
+              toast.success('Booking confirmed successfully!');
+              navigate('/bookings');
+            } catch (err) {
+              console.error(err);
+              toast.error('Payment verification failed');
+            }
+          },
+          prefill: {
+            name: formData.renterName,
+            contact: formData.phoneNumber
+          },
+          theme: {
+            color: "#D4AF37",
+            backdrop_color: "rgba(212, 175, 55, 0.1)"
+          },
+          modal: {
+            backdropclose: false,
+            escape: false,
+            handleback: true,
+            confirm_close: true,
+            ondismiss: function () {
+              toast.error('Payment cancelled');
+              setLoading(false);
+            }
+          }
+        };
+
+        if (!window.Razorpay) {
+          toast.error('Payment SDK failed to load. Please refresh.');
+          setLoading(false);
+          return;
+        }
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        // COD Flow
+        await bookingApi.create(payload);
+        toast.success('Booking confirmed successfully!');
+        navigate('/bookings');
+      }
+
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.message || 'Failed to create booking');
@@ -289,7 +376,7 @@ const BookingPage = () => {
                           className="hidden"
                         />
                         <span className="font-semibold block">Pay Online</span>
-                        <span className="text-xs text-gray-500">UPI / Cards</span>
+                        <span className="text-xs text-gray-500">Full amount now</span>
                       </label>
                       <label className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${formData.rentPaymentMethod === 'cod' ? 'border-primary-berry bg-primary-berry/5' : 'border-transparent bg-white/50 hover:bg-white'
                         }`}>
@@ -305,6 +392,11 @@ const BookingPage = () => {
                         <span className="text-xs text-gray-500">Pay at doorstep</span>
                       </label>
                     </div>
+                    <p className="text-xs text-gray-500 italic">
+                      {formData.rentPaymentMethod === 'online'
+                        ? '✓ You will pay the full amount (deposit + rent) online now'
+                        : '✓ You will pay deposit online now, rent at delivery'}
+                    </p>
                   </div>
                 </>
               ) : (
@@ -353,7 +445,11 @@ const BookingPage = () => {
                 disabled={loading}
                 className="flex-[2] py-4 rounded-xl btn-gradient-vows font-bold text-white shadow-lg disabled:opacity-70"
               >
-                {loading ? 'Processing...' : `Pay ₹${totalAmount}`}
+                {loading ? 'Processing...' :
+                  isRental && formData.rentPaymentMethod === 'cod'
+                    ? `Pay Deposit ₹${depositAmount}`
+                    : `Pay ₹${totalAmount}`
+                }
               </button>
             </div>
           </div>

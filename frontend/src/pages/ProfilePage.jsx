@@ -4,12 +4,36 @@ import { authApi, itemApi, paymentApi } from '../api/services';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, Shield } from 'lucide-react';
+import { Trash2, Shield, Upload, CheckCircle, XCircle } from 'lucide-react';
 
 const ProfilePage = () => {
   const { user, setUser, token, logout } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', avatarUrl: '', upiId: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    profilePhoto: null,
+    profilePhotoPreview: '',
+    // Payment info
+    upiId: '',
+    bankAccountNumber: '',
+    bankIfscCode: '',
+    bankAccountHolderName: '',
+    // Address
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      pincode: '',
+      country: 'India'
+    },
+    // ID Proof
+    idProofType: '',
+    idProofNumber: '',
+    idProofDocument: null,
+    idProofDocumentPreview: ''
+  });
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,8 +50,23 @@ const ProfilePage = () => {
         name: me.name || '',
         email: me.email || '',
         phone: me.phone || '',
-        avatarUrl: me.avatarUrl || '',
-        upiId: me.upiId || ''
+        profilePhoto: null,
+        profilePhotoPreview: me.profilePhoto || '',
+        upiId: me.upiId || '',
+        bankAccountNumber: me.bankAccountNumber || '',
+        bankIfscCode: me.bankIfscCode || '',
+        bankAccountHolderName: me.bankAccountHolderName || '',
+        address: {
+          street: me.address?.street || '',
+          city: me.address?.city || '',
+          state: me.address?.state || '',
+          pincode: me.address?.pincode || '',
+          country: me.address?.country || 'India'
+        },
+        idProofType: me.idProofType || '',
+        idProofNumber: me.idProofNumber || '',
+        idProofDocument: null,
+        idProofDocumentPreview: me.idProofDocument || ''
       });
       setItems(ownerItems);
       setUser(me);
@@ -43,79 +82,85 @@ const ProfilePage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleFileChange = (e, fieldName) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('File size must be less than 5MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm({
+          ...form,
+          [fieldName]: file,
+          [`${fieldName}Preview`]: reader.result
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleUpdate = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
+      // Update basic profile
       const { data } = await authApi.update({
         name: form.name,
-        phone: form.phone,
-        avatarUrl: form.avatarUrl
+        phone: form.phone
       });
 
-      // Update UPI ID if changed
-      if (form.upiId && form.upiId !== user.upiId) {
-        const response = await paymentApi.onboardLender({ upiId: form.upiId });
+      // Update payment details if changed
+      const paymentChanged =
+        form.upiId !== user.upiId ||
+        form.bankAccountNumber !== user.bankAccountNumber ||
+        form.bankIfscCode !== user.bankIfscCode ||
+        form.bankAccountHolderName !== user.bankAccountHolderName;
 
-        if (response.data.subscription) {
-          const options = {
-            key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-            subscription_id: response.data.subscription.id,
-            name: "Vastra Vows",
-            description: "Monthly Lender Subscription (₹100/month)",
-            image: "https://i.imgur.com/3g7nmJC.png",
-            handler: async function (razorpayResponse) {
-              try {
-                await paymentApi.verifySubscription({
-                  ...razorpayResponse,
-                  userId: user.id || user._id
-                });
-                toast.success('Subscription activated!');
-                data.upiId = form.upiId;
-                data.subscriptionStatus = 'active';
-                setUser(data);
-              } catch (err) {
-                toast.error('Subscription verification failed');
-                console.error(err);
-              }
-            },
-            prefill: {
-              name: data.name,
-              email: data.email,
-              contact: data.phone
-            },
-            theme: {
-              color: "#D4AF37",
-              backdrop_color: "rgba(212, 175, 55, 0.1)"
-            },
-            modal: {
-              backdropclose: false,
-              escape: false,
-              handleback: true,
-              confirm_close: true,
-              ondismiss: function () {
-                toast.error('Subscription cancelled');
-                setSaving(false);
-              }
-            }
-          };
+      if (paymentChanged) {
+        await paymentApi.onboardLender({
+          upiId: form.upiId,
+          bankAccountNumber: form.bankAccountNumber,
+          bankIfscCode: form.bankIfscCode,
+          bankAccountHolderName: form.bankAccountHolderName
+        });
+        toast.success('Payment details updated!');
+      }
 
-          if (!window.Razorpay) {
-            toast.error('Payment SDK failed to load. Please refresh.');
-            setSaving(false);
-            return;
-          }
+      // Update verification details if changed (with file uploads)
+      const verificationChanged =
+        form.address.street !== user.address?.street ||
+        form.address.city !== user.address?.city ||
+        form.address.state !== user.address?.state ||
+        form.address.pincode !== user.address?.pincode ||
+        form.idProofType !== user.idProofType ||
+        form.idProofNumber !== user.idProofNumber ||
+        form.profilePhoto ||
+        form.idProofDocument;
 
-          const rzp = new window.Razorpay(options);
-          rzp.open();
-        } else {
-          data.upiId = form.upiId;
-          toast.success('UPI ID added successfully!');
-        }
+      if (verificationChanged) {
+        const formData = new FormData();
+        formData.append('address', JSON.stringify(form.address));
+        if (form.idProofType) formData.append('idProofType', form.idProofType);
+        if (form.idProofNumber) formData.append('idProofNumber', form.idProofNumber);
+        if (form.profilePhoto) formData.append('profilePhoto', form.profilePhoto);
+        if (form.idProofDocument) formData.append('idProofDocument', form.idProofDocument);
+
+        // You'll need to create this endpoint
+        await fetch(`${import.meta.env.VITE_API_URL}/api/users/verification`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+        toast.success('Verification details updated!');
       }
 
       setUser(data);
       toast.success('Profile updated successfully');
+      loadProfile(); // Reload to get updated data
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.message || 'Unable to update profile');
@@ -170,6 +215,9 @@ const ProfilePage = () => {
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                 <Shield className="w-5 h-5 text-primary-berry" />
                 Lender Mode
+                {user?.isVerified && (
+                  <CheckCircle className="w-5 h-5 text-green-500" title="Verified Lender" />
+                )}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
                 {user?.isLenderEnabled ? 'You can list items for rent' : 'Enable to list your items'}
@@ -187,56 +235,207 @@ const ProfilePage = () => {
           </div>
         </div>
 
-        <form onSubmit={handleUpdate} className="grid gap-4 md:gap-6 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input value={form.email} disabled className="w-full px-4 py-3 rounded-xl bg-gray-100/50 border border-gray-200 text-gray-500 cursor-not-allowed" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-            <input
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Avatar URL</label>
-            <input
-              value={form.avatarUrl}
-              onChange={(e) => setForm({ ...form, avatarUrl: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
-            />
-          </div>
-
-          {user?.isLenderEnabled && (
-            <div className="md:col-span-2 border-t border-gray-200/50 pt-6 mt-2">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Payout Settings</h3>
-              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-4">
-                <p className="text-sm text-blue-800">
-                  Enter your UPI ID to receive payments directly from renters.
-                </p>
-              </div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">UPI ID (VPA)</label>
+        <form onSubmit={handleUpdate} className="space-y-6">
+          {/* Basic Info */}
+          <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
               <input
-                value={form.upiId || ''}
-                onChange={(e) => setForm({ ...form, upiId: e.target.value })}
-                placeholder="username@bank"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input value={form.email} disabled className="w-full px-4 py-3 rounded-xl bg-gray-100/50 border border-gray-200 text-gray-500 cursor-not-allowed" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Profile Photo</label>
+              <div className="flex items-center gap-3">
+                {form.profilePhotoPreview && (
+                  <img src={form.profilePhotoPreview} alt="Profile" className="w-12 h-12 rounded-full object-cover" />
+                )}
+                <label className="flex-1 px-4 py-3 rounded-xl glass-input cursor-pointer hover:bg-gray-50 transition flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">{form.profilePhoto ? form.profilePhoto.name : 'Upload Photo'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'profilePhoto')}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {user?.isLenderEnabled && (
+            <>
+              {/* Payment Settings */}
+              <div className="border-t border-gray-200/50 pt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Settings</h3>
+                <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-4">
+                  <p className="text-sm text-blue-800">
+                    Enter your payment details. The platform owner will use this information to transfer your earnings.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">UPI ID (VPA)</label>
+                    <input
+                      value={form.upiId || ''}
+                      onChange={(e) => setForm({ ...form, upiId: e.target.value })}
+                      placeholder="username@bank"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name</label>
+                    <input
+                      value={form.bankAccountHolderName || ''}
+                      onChange={(e) => setForm({ ...form, bankAccountHolderName: e.target.value })}
+                      placeholder="As per bank records"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account Number</label>
+                    <input
+                      value={form.bankAccountNumber || ''}
+                      onChange={(e) => setForm({ ...form, bankAccountNumber: e.target.value })}
+                      placeholder="1234567890"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">IFSC Code</label>
+                    <input
+                      value={form.bankIfscCode || ''}
+                      onChange={(e) => setForm({ ...form, bankIfscCode: e.target.value })}
+                      placeholder="SBIN0001234"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Address */}
+              <div className="border-t border-gray-200/50 pt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Address</h3>
+                <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                    <input
+                      value={form.address.street}
+                      onChange={(e) => setForm({ ...form, address: { ...form.address, street: e.target.value } })}
+                      placeholder="House/Flat No., Street Name"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                    <input
+                      value={form.address.city}
+                      onChange={(e) => setForm({ ...form, address: { ...form.address, city: e.target.value } })}
+                      placeholder="Mumbai"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                    <input
+                      value={form.address.state}
+                      onChange={(e) => setForm({ ...form, address: { ...form.address, state: e.target.value } })}
+                      placeholder="Maharashtra"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+                    <input
+                      value={form.address.pincode}
+                      onChange={(e) => setForm({ ...form, address: { ...form.address, pincode: e.target.value } })}
+                      placeholder="400001"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                    <input
+                      value={form.address.country}
+                      onChange={(e) => setForm({ ...form, address: { ...form.address, country: e.target.value } })}
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ID Proof */}
+              <div className="border-t border-gray-200/50 pt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">ID Proof for Verification</h3>
+                <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-100 mb-4">
+                  <p className="text-sm text-yellow-800">
+                    Upload a valid government ID for verification. This helps build trust with renters.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ID Type</label>
+                    <select
+                      value={form.idProofType}
+                      onChange={(e) => setForm({ ...form, idProofType: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    >
+                      <option value="">Select ID Type</option>
+                      <option value="aadhar">Aadhar Card</option>
+                      <option value="pan">PAN Card</option>
+                      <option value="passport">Passport</option>
+                      <option value="driving_license">Driving License</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+                    <input
+                      value={form.idProofNumber}
+                      onChange={(e) => setForm({ ...form, idProofNumber: e.target.value })}
+                      placeholder="Enter ID number"
+                      className="w-full px-4 py-3 rounded-xl glass-input focus:ring-2 focus:ring-primary-berry/20"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Upload ID Document</label>
+                    <label className="w-full px-4 py-3 rounded-xl glass-input cursor-pointer hover:bg-gray-50 transition flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">{form.idProofDocument ? form.idProofDocument.name : 'Upload Document (PDF/Image)'}</span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => handleFileChange(e, 'idProofDocument')}
+                        className="hidden"
+                      />
+                    </label>
+                    {form.idProofDocumentPreview && (
+                      <div className="mt-2">
+                        <img src={form.idProofDocumentPreview} alt="ID Proof" className="w-32 h-32 object-cover rounded-lg border" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
-          <div className="md:col-span-2 flex flex-col sm:flex-row gap-4 mt-2">
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <button
               type="submit"
               disabled={saving}
